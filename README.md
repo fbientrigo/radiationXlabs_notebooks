@@ -34,18 +34,18 @@ Radiation analysis project related to the intake radiation from CHARM, how it af
 
   * Notebook «Parte\_2\_Trenz\_Beam.ipynb» con código de merge y gráficos
 
-### 0.3. Semana 4: DMM\_CPLD y bitﬂips
+### 0.3. Semana 3: DMM\_CPLD y bitﬂips
 
 * **Tareas**:
 
   1. Limpieza de DMM\_CPLD, merge con beam → `df_all_cpld`
   2. Preprocesamiento de bitflips, merge con `df_all_cpld` y `df_beam`
-  3. Estadísticas básicas de bitflips vs dosis
+  3. Estadísticas básicas de bitflips vs dosis (Poisson?)
 * **Entregable**:
 
   * Notebook «Parte\_3\_CPLD\_Bitflips.ipynb» con análisis de bitflips
 
-### 0.4. Semana 5: Integración completa y modelado predictivo
+### 0.4. Semana 4: Integración completa y modelado predictivo
 
 * **Tareas**:
 
@@ -58,7 +58,7 @@ Radiation analysis project related to the intake radiation from CHARM, how it af
   * Notebook «Parte\_4\_Integración\_Modelado.ipynb»
   * Dashboard en Jupyter (o Voila/Streamlit si aplica)
 
-### 0.5. Semana 6: Documentación final y presentación
+### 0.5. Semana 5: Documentación final y presentación
 
 * **Tareas**:
 
@@ -72,7 +72,7 @@ Radiation analysis project related to the intake radiation from CHARM, how it af
   * Presentación «Análisis\_Radiación\_PPT.pptx»
 
 
----
+ 
 
 ## 1. Análisis de Voltaje con verDAQ
 ### 1.1. Descripción de los datos verDAQ
@@ -109,7 +109,7 @@ Radiation analysis project related to the intake radiation from CHARM, how it af
 - Frecuencias dominantes extraídas por FFT: posibles señales de interferencia
 - Resumen de patrones de interés que se detectan antes/durante/tras el paso del beam
 
----
+ 
 
 ## 2. Análisis de Corriente con DMM
 ### 2.1. Descripción de los datos DMM
@@ -168,7 +168,6 @@ Time\_event │ IDC\_event │ TID\_event │ HEH\_event │ N1MeV\_event │ Du
 
 ```
 
----
 
 ## 3. Análisis de Bitflips en CPLD
 *(Esta sección se activará una vez dispongamos de los logs de bitflips)*
@@ -183,11 +182,11 @@ Time\_event │ IDC\_event │ TID\_event │ HEH\_event │ N1MeV\_event │ Du
 ### 3.2. Preprocesamiento de Registros de Bitflips
 - Conversión de `timestamp` a `datetime64`  
 - Parsing de líneas de texto a DataFrame con columnas:  
+
 ```
-
 Time │ ByteAddr │ BitIdx │ OrigVal │ NewVal
-
 ````
+
 - Eliminación de duplicados (caso de relecturas idénticas)
 - Unificación de zonas horarias con `df_beam` y `df_corriente`
 
@@ -200,7 +199,6 @@ Time │ ByteAddr │ BitIdx │ OrigVal │ NewVal
 - **Bitflips vs corrientes pico** (¿ocurren más flips cuando la corriente se vuelve inestable?)  
 - Detección de regiones críticas (por dosis o corriente) donde la probabilidad de flip aumenta bruscamente
 
----
 
 ## 4. Análisis de Datos de Beam en CHARM
 ### 4.1. Descripción de los Archivos de Beam
@@ -241,7 +239,6 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
   * `factor = TID_avg_CHARM / TID_avg_LHC`
   * Interpretación: “1 s en CHARM equivale a X s/días en P2”
 
----
 
 ## 5. Fusión de Datos: Voltaje, Corriente y Beam
 
@@ -303,7 +300,7 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
   * Que no haya valores `NaN` inesperados en las columnas de `TID/HEH/N1MeV`
   * Que los muestreos de corriente y voltaje no queden demasiado “espaciados” tras el resampleo
 
----
+ 
 
 ## 6. Análisis Combinado y Visualización
 
@@ -349,7 +346,7 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
   * Slider para elegir ventana de análisis de corriente (por ejemplo, “Solo mostrar días X a Y”)
 * Exportación automática de figuras o resúmenes estadísticos a PDF/HTML
 
----
+ 
 
 ## 7. Modelado Estadístico y Predictivo
 
@@ -383,7 +380,7 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
 * Evaluación con curva ROC, precisión, recall
 * Interpretación con SHAP (Importancia de variables predictoras)
 
----
+ 
 
 ## 8. Plan de Acción: Siguientes Pasos y Conexiones
 
@@ -470,7 +467,7 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
    * Notebook maestro con todas las etapas encadenadas
    * Informe escrito (PDF/Markdown) que resuma metodología, resultados clave y recomendaciones
 
----
+ 
 
 
 ## 10. Apéndices
@@ -510,7 +507,7 @@ df3 = pd.read_csv("RUN_10_USER_/data_CHARMB_7_2.csv")
 * **Latch-Up**: Estado de falla en circuitos CMOS causado por radiación
 * **Bitﬂip**: Cambio accidental de un bit en memoria o registro inducido por radiación
 
----
+ 
 
 > **Nota final:**
 > Este índice está pensado como un “mapa de ruta” para guiar cada etapa de nuestro análisis. Cada sección (1, 2, 3, …) corresponderá a un notebook o entrega parcial que iremos revisando y validando antes de avanzar a la siguiente capa. De ese modo, nos aseguramos de no perdernos entre tantos ficheros y pasos, y construimos un flujo de trabajo incremental y coherente.
