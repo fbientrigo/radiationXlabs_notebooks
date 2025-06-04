@@ -1,7 +1,54 @@
 import numpy as np
+import pandas as pd
+
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 from matplotlib.ticker import FuncFormatter
+
+import pywt
+import matplotlib.dates as mdates
+from scipy.fft import rfft, rfftfreq
+
+
+def cwt(df, channel = 'ch0', time_axis = 'timestamp', scale_max = 256):
+    x = df[channel].values
+    times = df[time_axis].values
+
+    # 4) CWT
+    scales = np.arange(1, scale_max)
+    coeffs, freqs = pywt.cwt(x, scales, 'morl', sampling_period=coef)
+
+    # 5) Gráfica señal vs tiempo y scalogram
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=False)
+
+    # Señal vs timestamp
+    ax1.plot(df[time_axis], x, '.', markersize=2)
+    ax1.set_title(f'{channel} vs {time_axis}')
+    ax1.set_ylabel('ADC Code')
+    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+    plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
+
+    # Scalogram
+    extent = [times[0], times[-1], freqs[-1], freqs[0]]  # Y de f_min a f_max
+    im = ax2.imshow(
+        np.abs(coeffs),
+        extent=extent,
+        aspect='auto'
+    )
+    ax2.set_yscale('log')
+    ax2.set_title('CWT Scalogram (ch0)')
+    ax2.set_ylabel('Frecuencia [Hz]')
+    ax2.set_xlabel('Sample Index')
+
+    # Convertir eje Y a MHz
+    # ax2.yaxis.set_major_formatter(
+    #     ticker.FuncFormatter(lambda val, pos: f"{val:.3e}")
+    # )
+    ax2.set_ylabel('Frequency [Hz]')
+
+    plt.tight_layout()
+    plt.show()
+
 
 def hz_formatter(x, pos):
     """Formatea x en Hz/kHz/MHz para el eje X"""
@@ -115,3 +162,65 @@ def plot_fft_heatmap(
         plt.show()
 
     return fig, ax
+
+
+def analyze_frequencies(df, channel='ch0', coef=0.00129798, intercept=-0.030460957185257993):
+    """
+    Dado un DataFrame con muestras y el sampling period (coef),
+    genera:
+     1) Un scalogram CWT con el eje de frecuencia (Hz).
+     2) Un espectro FFT para identificar los picos de frecuencia.
+    """
+    for ch in [f'ch{x}' for x in range(8)]:
+        df[ch] = df[ch].apply(lambda x: int(str(x), 16))
+
+    x = df[channel].values
+    n = len(x)
+    fs = 1.0 / coef               # frecuencia de muestreo en Hz
+
+    # generar los time stamps en base a coef
+    n = len(df)
+    k = np.arange(n)
+    # Tiempo relativo en segundos
+    pred_secs = intercept + coef * k
+    t0 = df['timestamp'].iloc[0]
+    df['predicted_timestamp'] = t0 + pd.to_timedelta(pred_secs, unit='s')
+    t0 = df['predicted_timestamp'].iloc[0]
+
+    # ——— 1) CWT Scales → Frecuencias ———
+    scales = np.arange(1, 128)
+    # freqs en Hz: pywt.scale2frequency devuelve frecuencia relativa (1/dt)
+    frequencies = pywt.scale2frequency('morl', scales) * fs
+    coeffs, _ = pywt.cwt(x, scales, 'morl', sampling_period=coef)
+
+    # Plot scalogram con eje de frecuencia
+    fig, ax = plt.subplots(figsize=(8,4))
+    im = ax.imshow(np.abs(coeffs), 
+                   extent=[0, n, frequencies[-1], frequencies[0]],
+                   aspect='auto',
+                   cmap='jet')
+    ax.set_ylabel('Frecuencia (Hz)')
+    ax.set_yscale('log')
+    ax.set_xlabel('Índice de muestra k')
+    ax.set_title(f'CWT Scalogram ({channel})')
+    fig.colorbar(im, ax=ax, label='|coef|')
+    plt.tight_layout()
+    plt.show()
+
+    # ——— 2) FFT para espectro ———
+    # Restar la media para centrar
+    x_detrended = x - np.mean(x)
+    # Transformada rápida de Fourier
+    X = rfft(x_detrended)
+    freqs = rfftfreq(n, d=coef)   # eje de frecuencia
+    power = np.abs(X)
+
+    # Plot espectro
+    fig, ax = plt.subplots(figsize=(8,4))
+    ax.plot(freqs, power)
+    ax.set_xlim(0, fs/2)
+    ax.set_xlabel('Frecuencia (Hz)')
+    ax.set_ylabel('Magnitud FFT')
+    ax.set_title(f'Espectro FFT ({channel})')
+    plt.tight_layout()
+    plt.show()
