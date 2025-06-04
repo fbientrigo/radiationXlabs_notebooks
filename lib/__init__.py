@@ -1,2 +1,5 @@
 from .reading import * 
-from .comparing import *
+from .detection import *
+from .wavelet import *
+from .graphing import *
+    # graphic library, useful plots
