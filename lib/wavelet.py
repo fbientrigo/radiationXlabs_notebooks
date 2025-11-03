@@ -10,13 +10,39 @@ import matplotlib.dates as mdates
 from scipy.fft import rfft, rfftfreq
 
 
-def cwt(df, channel = 'ch0', time_axis = 'timestamp', scale_max = 256):
+def _infer_sampling_period(time_series: pd.Series) -> float:
+    """Infer the sampling period (in seconds) from a time axis series."""
+
+    if len(time_series) < 2:
+        raise ValueError("At least two samples are required to infer the sampling period.")
+
+    deltas = time_series.diff().dropna()
+    if deltas.empty:
+        raise ValueError("Unable to compute sampling period from constant timestamps.")
+
+    if np.issubdtype(deltas.dtype, np.timedelta64):
+        deltas = deltas.dt.total_seconds()
+
+    deltas = deltas.to_numpy(dtype=float)
+    sampling_period = float(np.nanmedian(deltas))
+
+    if not np.isfinite(sampling_period) or sampling_period <= 0:
+        raise ValueError("Inferred sampling period must be a positive finite number.")
+
+    return sampling_period
+
+
+def cwt(df, channel='ch0', time_axis='timestamp', scale_max=256, sampling_period=None):
+    time_series = df[time_axis]
+    times = time_series.to_numpy()
     x = df[channel].values
-    times = df[time_axis].values
+
+    if sampling_period is None:
+        sampling_period = _infer_sampling_period(time_series)
 
     # 4) CWT
     scales = np.arange(1, scale_max)
-    coeffs, freqs = pywt.cwt(x, scales, 'morl', sampling_period=coef)
+    coeffs, freqs = pywt.cwt(x, scales, 'morl', sampling_period=sampling_period)
 
     # 5) Gráfica señal vs tiempo y scalogram
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6), sharex=False)
@@ -29,16 +55,26 @@ def cwt(df, channel = 'ch0', time_axis = 'timestamp', scale_max = 256):
     plt.setp(ax1.get_xticklabels(), rotation=45, ha='right')
 
     # Scalogram
-    extent = [times[0], times[-1], freqs[-1], freqs[0]]  # Y de f_min a f_max
+    if np.issubdtype(time_series.dtype, np.datetime64):
+        extent_times = mdates.date2num(pd.to_datetime(time_series))
+        extent = [extent_times[0], extent_times[-1], freqs[-1], freqs[0]]
+    else:
+        extent = [times[0], times[-1], freqs[-1], freqs[0]]  # Y de f_min a f_max
     im = ax2.imshow(
         np.abs(coeffs),
         extent=extent,
         aspect='auto'
     )
     ax2.set_yscale('log')
-    ax2.set_title('CWT Scalogram (ch0)')
+    ax2.set_title(f'CWT Scalogram ({channel})')
     ax2.set_ylabel('Frecuencia [Hz]')
-    ax2.set_xlabel('Sample Index')
+    if np.issubdtype(time_series.dtype, np.datetime64):
+        ax2.xaxis_date()
+        ax2.set_xlabel('Time')
+        ax2.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
+        plt.setp(ax2.get_xticklabels(), rotation=45, ha='right')
+    else:
+        ax2.set_xlabel('Sample Index')
 
     # Convertir eje Y a MHz
     # ax2.yaxis.set_major_formatter(
@@ -164,26 +200,35 @@ def plot_fft_heatmap(
     return fig, ax
 
 
-def analyze_frequencies(df, channel='ch0', coef=0.00129798, intercept=-0.030460957185257993):
+def analyze_frequencies(
+    df,
+    channel='ch0',
+    sampling_period=None,
+    intercept=-0.030460957185257993,
+    time_axis='timestamp'
+):
     """
-    Dado un DataFrame con muestras y el sampling period (coef),
+    Dado un DataFrame con muestras y el sampling period,
     genera:
      1) Un scalogram CWT con el eje de frecuencia (Hz).
      2) Un espectro FFT para identificar los picos de frecuencia.
     """
+    df = df.copy()
     for ch in [f'ch{x}' for x in range(8)]:
         df[ch] = df[ch].apply(lambda x: int(str(x), 16))
 
     x = df[channel].values
     n = len(x)
-    fs = 1.0 / coef               # frecuencia de muestreo en Hz
+    if sampling_period is None:
+        sampling_period = _infer_sampling_period(df[time_axis])
+    fs = 1.0 / sampling_period               # frecuencia de muestreo en Hz
 
-    # generar los time stamps en base a coef
+    # generar los time stamps en base al sampling_period
     n = len(df)
     k = np.arange(n)
     # Tiempo relativo en segundos
-    pred_secs = intercept + coef * k
-    t0 = df['timestamp'].iloc[0]
+    pred_secs = intercept + sampling_period * k
+    t0 = df[time_axis].iloc[0]
     df['predicted_timestamp'] = t0 + pd.to_timedelta(pred_secs, unit='s')
     t0 = df['predicted_timestamp'].iloc[0]
 
@@ -191,7 +236,7 @@ def analyze_frequencies(df, channel='ch0', coef=0.00129798, intercept=-0.0304609
     scales = np.arange(1, 128)
     # freqs en Hz: pywt.scale2frequency devuelve frecuencia relativa (1/dt)
     frequencies = pywt.scale2frequency('morl', scales) * fs
-    coeffs, _ = pywt.cwt(x, scales, 'morl', sampling_period=coef)
+    coeffs, _ = pywt.cwt(x, scales, 'morl', sampling_period=sampling_period)
 
     # Plot scalogram con eje de frecuencia
     fig, ax = plt.subplots(figsize=(8,4))
@@ -212,7 +257,7 @@ def analyze_frequencies(df, channel='ch0', coef=0.00129798, intercept=-0.0304609
     x_detrended = x - np.mean(x)
     # Transformada rápida de Fourier
     X = rfft(x_detrended)
-    freqs = rfftfreq(n, d=coef)   # eje de frecuencia
+    freqs = rfftfreq(n, d=sampling_period)   # eje de frecuencia
     power = np.abs(X)
 
     # Plot espectro
