@@ -136,9 +136,243 @@ Act as a statistical physicist specializing in rare-event inference. Given async
 2. Change-point detection strategies that remain robust when sampling cadences drift.
 3. Posterior diagnostic techniques and computational shortcuts suited for notebook-scale analyses.
 Provide pseudocode templates and references to foundational papers.
+
 """
+Respuesta:
 ---
-(answer space for later)
+Rare-Event Inference for Beam Intensity Profile and Device Susceptibility
+Bayesian Inference Pipeline
+Model Setup and Likelihood (handling missing data): We construct a generative model that treats the latent beam intensity $I(t)$ as a hidden stochastic process and device susceptibility parameters (e.g. error cross-sections) as unknown constants. A convenient choice is to model $I(t)$ as piecewise-constant in time with unknown change-points, since the beam intensity profile may shift at irregular times (e.g. between accelerator spills). Let ${\tau_j}$ be potential change-points and $I_j$ the constant intensity in segment $j$. The device’s response parameters $\Theta$ (such as probability of bitflip per particle flux, or analog signal sensitivity) are also to be inferred. The likelihood must accommodate incomplete observations: for each time interval, we include the contribution of observed data and appropriately account for intervals of missing or censored data. In practice, missing/censored observations can be treated as latent variables and integrated out of the likelihood
+stats.stackexchange.com
+tommasorigon.github.io
+. For example, if a telemetry segment is missing, we multiply the likelihood by the probability of not seeing an event in that period (analogous to survival analysis, where a right-censored observation contributes a survival term instead of a density term
+stats.stackexchange.com
+). This ensures that incomplete data still inform the model without bias (assuming non-informative missingness). Bayesianly, one could introduce latent variables for the unobserved measurements and either marginalize them out analytically or sample them within an inference algorithm
+tommasorigon.github.io
+. The a priori distribution for $I(t)$ can enforce physical constraints (e.g. non-negativity) and encourage parsimonious structure – for instance, a prior on the number of change-points (Poisson or geometric) and a uniform or Beta prior on their locations. The likelihood might include terms such as: beam monitor counts $\sim \text{Poisson}(I(t),\Delta t)$ (flux per spill), bitflip counts $\sim \text{Poisson}(I(t),\sigma_{\text{flip}},\Delta t)$ where $\sigma_{\text{flip}}\in\Theta$ is a device susceptibility parameter, and analog readings (voltage/current) modeled via a parametric link (e.g. linear shift or log-linear function of $I(t)$ plus noise). Crucially, segments with no data simply contribute a factor of 1 (or an integrated likelihood) so that the overall likelihood is the product of observed-data densities times survival probabilities for censored spans
+stats.stackexchange.com
+. If needed, informative priors on $\Theta$ (e.g. from previous device calibrations) can regularize estimation given the rarity of events. Robust Change-Point Modeling (drifting sampling times): Instead of assuming evenly spaced samples, we explicitly model time irregularities. The change-points ${\tau_j}$ are defined in real time (e.g. milliseconds) and $I(t)$ is piecewise constant on those segments. By treating time in continuous units, the inference naturally accounts for any drift in sampling cadence – longer intervals with no changes simply provide more exposure time for events without triggering false alarms. In a Bayesian framework, one can place a prior on the number of change-points and their positions; for example, Carlin et al. (1992) use a single-change model and Green (1995) extends to multiple changes via reversible-jump MCMC
+e-archivo.uc3m.es
+. The posterior for ${\tau_j}$ and intensities ${I_j}$ given the data can be complex, but modern Bayesian change-point detection methods allow efficient exploration. We might adopt a product partition model or Bayesian hidden Markov model for the intensity changes
+e-archivo.uc3m.es
+. The key is that the model should not confuse irregular sampling for genuine changes. For instance, one can include a prior that discourages very short segments unless strongly supported, or use time-weighted likelihoods. Braun et al. (2022) emphasize that abrupt shifts in sampling rate can otherwise mimic regime changes
+journals.aps.org
+journals.aps.org
+. By incorporating the actual timestamp differences $\Delta t$ into the Poisson likelihood (which uses $e^{-I_j \Delta t}$ for zero events in a gap, etc.), the Bayesian model remains correctly calibrated even if telemetry timing drifts. This built-in robustness means the inferred posterior for change-points reflects real intensity changes rather than artifacts of data timing. Inference and Computational Shortcuts: Once the model is set, we perform Bayesian inference, typically via Markov chain Monte Carlo or related methods. A straightforward approach is Gibbs or Metropolis-within-Gibbs sampling: iterate sampling of $(I(t), \Theta, {\tau_j})$. If the number of change-points is unknown, reversible-jump MCMC can jump between dimensionalities
+e-archivo.uc3m.es
+, or one can use dynamic programming to marginalize over change-point locations (Fearnhead’s method for exact multi-changepoint posteriors). Given that rare-event models can have sparse data, the posterior might be multimodal (different possible change-point configurations explaining the data). We therefore run multiple chains from dispersed initializations. To speed up computation on a standard notebook, one can exploit problem structure. For example, if the beam monitors and bitflip events are modeled with a latent Gaussian structure (e.g. a log-intensity that is piecewise constant), we could apply Integrated Nested Laplace Approximation (INLA) for faster deterministic posterior approximation
+arxiv.org
+. INLA provides near-instant inference for latent Gaussian models by analytical Laplace approximations, avoiding slow MCMC sampling
+arxiv.org
+. Another shortcut is variational inference: e.g. Automatic Differentiation Variational Inference (ADVI) can quickly yield an approximate posterior for $I(t)$ and $\Theta$ by turning inference into an optimization problem
+arxiv.org
+. ADVI supports very general models and can handle large data by finding a factorized approximation to the posterior
+arxiv.org
+. Such approaches are useful for “notebook-scale” analysis because they trade a bit of accuracy for significant speed gains, letting us interactively refine the model. Posterior Diagnostics: After obtaining the posterior, we must check its validity. We compute convergence diagnostics like Gelman–Rubin’s $\hat R$ for all parameters – values close to 1.0 indicate good mixing (in practice $\hat R<1.1$ is often required, with 1.2 as an absolute max
+developers.google.com
+). Effective sample size (ESS) is examined to ensure we have enough independent draws for each parameter. We also inspect trace plots of the MCMC chains for each parameter to verify they have converged and thoroughly explored the distribution (no stuck chains or trends)
+developers.google.com
+. Beyond convergence, posterior predictive checks are crucial
+mc-stan.org
+. We draw samples from the posterior predictive distribution – for example, simulate new bitflip counts or voltage traces from our fitted model – and compare these to the actual data. If the model is good, replicated data should look similar to observed (e.g. similar frequency of rare bitflip bursts)
+mc-stan.org
+mc-stan.org
+. Any systematic discrepancy (e.g. the model underestimates variability in current spikes) would appear as the observed data falling in extreme tails of the posterior predictive distribution
+mc-stan.org
+, indicating a poor fit. We might also compute posterior predictive $p$-values for summary statistics (e.g. maximum burst size) to quantitatively assess fit
+mc-stan.org
+. If mismatches are found, we refine the model (e.g. add a heavy-tailed component for outliers or allow an extra change-point). Finally, we can examine the posterior marginal distributions of key quantities: the inferred beam intensity profile mean and credible interval over time, and the device susceptibility parameters’ posteriors. If a parameter’s posterior is very wide or multimodal, it might indicate insufficient data or identifiability issues, prompting further data collection or model simplification.
+Pseudocode Template: Bayesian Rare-Event Pipeline
+# Pseudocode: Bayesian Inference for Rare-Event Data
+
+# 1. Data Preprocessing: align asynchronous streams and handle missing data
+timestamps = unify_time_axes(voltage, current, bitflips, beam_monitor)  # e.g., merge on common timeline (ms resolution)
+for stream in [voltage, current, bitflips, beam_monitor]:
+    stream = interpolate_or_mark_missing(stream, timestamps)
+# Now 'timestamps' is an ordered list of observation times (with irregular gaps if any).
+# Missing data segments will be represented (e.g., as NaNs or None) in each stream.
+
+# 2. Define Bayesian model
+# Priors:
+prior_num_changepoints ~ Poisson(lambda_cp)          # e.g., expect a few change-points a priori
+prior_changepoint_times ~ order_uniform(0, T_total)  # if k change-points, assume random positions (sorted)
+for segment in segments:
+    prior_intensity[segment] ~ Exponential(beta_I)   # beam intensity in each segment (positive)
+for param in Theta: 
+    prior_param ~ some_distribution                  # e.g., Theta_bitflip ~ LogNormal(mu, sigma)
+# Likelihood:
+for each time interval delta_t between consecutive timestamps:
+    if beam_monitor data is present:
+       observed_flux ~ Poisson(intensity(current_segment) * delta_t)    # beam monitor count likelihood
+    if bitflip count data present:
+       bitflips ~ Poisson(intensity(current_segment) * Theta_bitflip * delta_t)
+    if voltage/current data present:
+       value ~ Likelihood_Model(intensity(current_segment), Theta_voltage, Theta_current)
+    if data is missing in an interval:
+       # No direct likelihood contribution; implicitly, P(no recorded events in delta_t) is accounted by the Poisson term:
+       # (If completely missing, we could explicitly include survival probability: exp(-intensity * Theta * delta_t) for bitflips, etc.)
+       continue
+
+# 3. Inference via MCMC or variational approximation
+initialize_chain()
+for iteration in 1:N_iter:
+    # Gibbs or Metropolis updates for each block of parameters:
+    sample_num_changepoints()    # e.g., via RJMCMC split/merge moves
+    sample_changepoint_positions()  # move positions given data
+    sample_intensities_for_segments()  # e.g., conjugate update if prior/likelihood allow (Poisson->Gamma conjugacy)
+    sample_Theta_parameters()        # update device parameters (could be Metropolis if no conjugacy)
+    if convergence_diagnosed(): break
+
+# Alternatively: use ADVI for faster, approximate inference
+posterior_approx = ADVI(model_definition, data)
+Theta_posterior_mean = posterior_approx.mean("Theta")
+# ...
+
+# 4. Posterior diagnostics
+samples = collect_posterior_samples()
+r_hat_values = compute_Rhat(samples)           # Gelman-Rubin R-hat for each param
+ess_values = compute_effective_sample_size(samples)
+if any(r_hat > 1.1 or ess < threshold):
+    print("Warning: Chains may not have converged or are too autocorrelated.")
+plot_trace(samples, params=["num_changepoints","Theta_bitflip","intensity[1]",...])
+posterior_predictive = []
+for s in samples[::thin]:  # thin samples for independence
+    sim_data = simulate_data_given(s)          # draw new bitflip events, etc., for each posterior sample
+    posterior_predictive.append(summary_stats(sim_data))
+compare_to_observed(posterior_predictive, summary_stats(observed_data))  # e.g., overlay histograms or compute p-values
+
+# 5. Results extraction
+posterior_intensity_profile = summarize_posterior(samples["I(t)"])   # e.g., mean and 95% credible band over time
+posterior_device_params = summarize_posterior(samples["Theta"])      # distribution of susceptibility params
+print_report(posterior_intensity_profile, posterior_device_params, discovered_changepoints=samples["tau"].mode())
+Frequentist Inference Pipeline
+Model and Likelihood (handling missing data): In a frequentist framework, we define a likelihood function for the observed data and find the estimates $(\hat I(t), \hat{\Theta})$ that maximize it (MLE), while dealing with unknown change-points and incomplete data. The set-up is similar: assume $I(t)$ is piecewise constant with change-points, and define $\Theta$ for device susceptibility. The full data log-likelihood can be written as a sum over all time intervals. Contributions from observed intervals are straightforward (e.g. $\log f(\text{bitflips}|\ I(t),\Theta)$), while missing data segments contribute the log-probability of whatever was observed (often “nothing happened”). For example, if an interval of length $\Delta t$ had no recorded bitflips (because the sensor was offline), and we assume those missing data are non-informative, we effectively omit that interval from the likelihood (or include $\log P(\text{0 events in }\Delta t)$ under the model). As long as data are missing at random (independent of the unobserved intensity), the MLE remains unbiased
+reddit.com
+. If not, one might need to model the missingness process, but we will assume missingness is unrelated to the actual beam intensity (e.g., random telemetry dropout). In practice, one can implement the Expectation-Maximization (EM) algorithm for this incomplete-data likelihood
+tommasorigon.github.io
+. In the E-step, we estimate the expected contribution of missing segments given current parameter guesses; in the M-step, we update $(I(t), \Theta)$ to maximize this expected likelihood
+reddit.com
+reddit.com
+. This is akin to methods in survival analysis where un-failed (censored) cases contribute a survival term to the likelihood
+stats.stackexchange.com
+. For instance, treating unobserved intervals as censored with no failure (no event), the likelihood includes factors $S(\Delta t|\ I,\Theta)$ for those intervals, where $S$ is the survival (no-event) probability. All these pieces together form $L(\Theta, I(t)) = \prod_{\text{obs}} f_{\text{obs}} \times \prod_{\text{miss}} S_{\text{miss}}$. Taking logs yields a sum that can be maximized numerically. Change-Point Detection (robust to sampling drift): A two-step strategy often simplifies the frequentist analysis: first identify change-points in the beam intensity, then estimate levels and parameters. To detect change-points robustly despite irregular sampling, we base our detection on the timing of events rather than assuming fixed-size time bins. One approach is to model the beam monitor or event count as a Poisson process with piecewise-constant rate, and use statistical tests or penalized optimization to find where the rate changes
+e-archivo.uc3m.es
+. Classical methods, like cumulative sum (CUSUM) tests, have been extended to handle exponential family data (e.g. Poisson) with varying interval lengths
+e-archivo.uc3m.es
+. Specifically, Worsley (1986) derived likelihood ratio tests for a single change in Poisson rates
+e-archivo.uc3m.es
+, and these ideas can be applied in a binary segmentation: test for a change, split the data at the most likely change, then recursively test segments
+e-archivo.uc3m.es
+e-archivo.uc3m.es
+. Modern algorithms such as PELT (Pruned Exact Linear Time) provide an efficient way to find multiple change-points by optimizing a cost (like negative log-likelihood plus a penalty) across all possible segmentations
+cran.r-project.org
+. PELT can find the optimal set of change-points in $O(n)$ time under mild conditions
+cran.r-project.org
+, making it suitable for large telemetry streams. To ensure robustness to drift in sampling rate, the detection algorithm uses the exact timestamps: for example, in a Poisson-process setting, the log-likelihood for a segment is $\ell = k \ln \lambda - \lambda T$ (for $k$ events in segment of duration $T$). Here, $T$ (segment length) is explicitly included, so if sampling gaps increase $T$ without events, the likelihood favoring a lower $\lambda$ will reflect that, rather than falsely signaling a change. Additionally, one can normalize statistics by expected variance given irregular spacing
+journals.aps.org
+. For instance, a robust CUSUM for Poisson data with varying intervals might use a standardized increment $(k_i - \lambda_0 \Delta t_i)/\sqrt{\lambda_0 \Delta t_i}$ to accumulate deviations, so that longer gaps (large $\Delta t_i$) don’t spuriously inflate the variance. Braun et al. (2022) demonstrate identifying and removing a spurious change that was solely due to an abrupt sampling frequency shift
+journals.aps.org
+. By applying their idea of sampling-rate correction (e.g. adjusting detection thresholds or randomization tests to account for time-varying data density), we improve the robustness of our change-point findings. In practice, after detecting candidate change-points, we might merge or disregard any that are suspiciously close in time to known telemetry glitches or gaps, as these might be false positives due to irregular sampling. Parameter Estimation and Computation: Given a set of change-points (either fixed from a detection step or treated as additional parameters to estimate), we next estimate the beam intensities in each segment and the device parameters $\Theta$. If change-points are known, this is straightforward: treat each segment between change-points as having constant intensity $I_j$ and perform MLE. For Poisson-type data, the MLE of $I_j$ would be the observed count in segment $j$ divided by the exposure time (for beam monitors or bitflips, essentially the rate). Likewise, an MLE for a bitflip cross-section $\sigma_{\text{flip}}$ could be obtained by regressing the total bitflip count against the total particle flux exposure (summing $I(t)\Delta t$ over time) – effectively $\hat\sigma_{\text{flip}} = \frac{\text{total flips}}{\text{total flux}}$. In practice, we fit the model by maximizing the complete-data log-likelihood. This can be done with numerical optimization (e.g. using Newton-Raphson or BFGS on the log-likelihood). If the change-points are not predetermined, one can jointly maximize over change-point locations as well, but this is a difficult combinatorial optimization. Instead, a common frequentist approach is profile likelihood: treat the change-point times as parameters, but for any fixed set of change-points, compute the best likelihood (by optimizing $I_j$ and $\Theta$). Then search over change-point configurations by comparing these maximized likelihoods plus a penalty (to avoid overfitting with too many changes). Information criteria like BIC or Akaike’s penalty $2k$ (for $k$ extra parameters) are useful to choose the number of change-points. The EM algorithm is another tool if we regard change-point assignments as latent: one could iteratively guess segmentation (E-step: compute weights for each time being a change vs not) and then maximize parameters (M-step)
+tommasorigon.github.io
+. However, given the relatively small number of change-points expected and the “after-the-fact” nature of analysis (we have all data already), the simpler approach is usually sufficient: detect changes with a method like PELT, then do MLE for each segment and overall $\Theta$. This divide-and-conquer approach is computationally efficient and interpretable. It’s also feasible on notebook-scale data: e.g. PELT can handle $10^4$–$10^5$ data points easily on a laptop, and optimizing a handful of rates and one or two $\Theta$ parameters is instantaneous. If needed, we can accelerate change-point search with approximate methods (like a binary segmentation which is $O(n\log n)$) or by down-sampling high-frequency signals slightly (while being careful not to lose the timing accuracy for drift). Uncertainty and Diagnostics: After obtaining MLEs, we quantify their uncertainty and check goodness of fit. For each estimated parameter, we can compute standard errors from the Fisher information or Hessian of the log-likelihood at the optimum. For example, if $\hat I_j$ is the rate in segment $j$, its standard error $\approx \sqrt{\hat I_j/\Delta t_j}$ for Poisson counts (since the variance of a Poisson MLE is $\lambda/\text{exposure}$). For $\hat\sigma_{\text{flip}}$, we might compute a confidence interval via the delta method or treat the bitflip counts as Poisson with mean $\sigma_{\text{flip}}\sum_{\text{t}} I(t)\Delta t$ and get a standard error. More directly, we can employ a nonparametric bootstrap: resample “spills” or time blocks of data and re-run the entire estimation to get a distribution of $\hat I(t)$ and $\hat{\Theta}$. This accounts for both parameter variability and change-point uncertainty (some bootstrap replicates might have an extra change-point or omit one, which reveals how confidently a change is supported). We also perform residual analysis to validate the model. For instance, compare observed bitflip counts in each segment to the predicted Poisson means $\hat I_j \hat\sigma_{\text{flip}}\Delta t$ – a Pearson chi-square can test if there’s overdispersion (are there more fluctuations than Poisson would expect?). If the p-value is low, it suggests our model might be too simple (maybe intensity isn’t perfectly constant in a segment or there’s interaction between events). We could also examine the timing of bitflips: under a homogeneous Poisson assumption within each segment, the inter-arrival times should be exponential. A Kolmogorov–Smirnov test on the inter-arrival times (transformed by $\hat I_j \hat\sigma_{\text{flip}}$) can check for any deviation (like clustering of events would violate the exponential assumption). Another diagnostic is to look at the change-point fit: overlay the estimated intensity piecewise-constant function on the beam monitor readings to ensure the segmentation captures all major systematic changes in flux. If a significant fluctuation in the monitor data was not flagged as a change-point, it might indicate our penalty was too stringent; conversely, if a change-point was identified but the difference in levels is marginal, we reconsider if it’s a false positive. Throughout, we remain mindful of the sampling times: a visual check is to plot the data with time on the x-axis in true scale (including gaps) and mark change-points – they should align with real features, not with, say, an interval of missing data. In summary, the frequentist pipeline yields point estimates of the beam intensity profile (e.g. flux per spill) and device susceptibility parameters, along with confidence intervals and tests to validate the inferred model.
+Pseudocode Template: Frequentist Rare-Event Pipeline
+# Pseudocode: Frequentist Inference for Rare-Event Data
+
+# 1. Data Preparation: similar to Bayesian case
+timestamps = unify_time_axes(voltage, current, bitflips, beam_monitor)
+for stream in [voltage, current, bitflips, beam_monitor]:
+    stream = fill_missing_with_nan(stream, timestamps)
+# Now we have aligned data (possibly irregularly spaced in time) with markers for missing values.
+
+# 2. Changepoint Detection on beam-related data (offline detection)
+event_times = extract_event_times(bitflips)        # times at which bitflips occurred
+monitor_counts = aggregate_by_spill(beam_monitor)  # e.g., sum or average readings per beam spill
+# Use a robust change-point method (e.g., PELT) on the beam monitor or event count series:
+changepoints = PELT(data=monitor_counts, timestamps=monitor_counts.times, cost="poisson", penalty="BIC")
+# Alternatively, detect on bitflip rate if beam monitor is unreliable:
+# changepoints = PELT(data=bitflip_counts, timestamps=..., cost="poisson", penalty="BIC")
+# Ensure to incorporate timestamps so that cost = -LL includes actual interval lengths.
+
+# 3. Segment data based on detected change-points
+segments = divide_time_into_segments(timestamps, changepoints)
+# segments is list of (start_time, end_time) for each piecewise-constant intensity period
+
+# 4. Parameter estimation for each segment and global device parameters
+likelihood = define_likelihood_function(model="Poisson", data=(beam_monitor, bitflips, ...))
+# e.g., log L = sum_j [bitflips_j * ln(I_j * sigma_flip * dt_j) - I_j * sigma_flip * dt_j] + ... for monitors
+initial_guess = initialize_params(segments, data)
+hat_params = optimize(likelihood, initial_guess)   # maximize log-likelihood -> yields {I_hat[j]} and Theta_hat
+# If needed, iterate EM for missing data: 
+# E-step: estimate expected logL contributions for missing parts given current params
+# M-step: optimize with those filled in.
+
+# 5. Compute standard errors/confidence intervals
+Fisher_info = likelihood_hessian(hat_params)
+param_variances = np.linalg.inv(Fisher_info)       # inverse Hessian as variance estimate
+for p in hat_params:
+    conf_int[p] = normal_approx_confidence(p, hat_params[p], param_variances[p,p])
+# Alternatively, bootstrap to get confidence intervals:
+boot_samples = []
+for b in range(B):
+    boot_data = resample_time_blocks((beam_monitor, bitflips), block_size=some_interval)
+    cp_b = detect_changepoints(boot_data) 
+    params_b = optimize(likelihood, initial_guess, data=boot_data, changepoints=cp_b)
+    boot_samples.append(params_b)
+conf_int = percentile_interval(boot_samples, level=0.95)
+
+# 6. Goodness-of-fit checks
+# Check Poisson assumption in each segment:
+for seg in segments:
+    observed = count_bitflips(seg)
+    expected_mean = hat_params['I'][seg] * hat_params['sigma_flip'] * seg.duration
+    # Chi-square contribution for this segment:
+    chi2_seg = (observed - expected_mean)**2 / expected_mean
+# Sum chi2 over segments and compare to chi-square with df = (#segments - #params) to assess overall fit.
+chi2_total = sum(chi2_seg)
+p_value = 1 - ChiSquare(df).cdf(chi2_total)
+print("Chi-square GOF p-value:", p_value)
+# If p_value is very low, model may be mis-specified (e.g., overdispersion or missing change-points).
+
+# Check timing of events vs exponential distribution:
+interarrival = np.diff(event_times)  # intervals between consecutive bitflips
+for seg in segments:
+    # Normalize interarrivals in this segment by expected rate:
+    times = interarrival[in_segment(seg)]
+    lam = hat_params['I'][seg] * hat_params['sigma_flip']
+    normalized_gaps = [1 - exp(-lam * t) for t in times]  # CDF transform for exponential
+    ks_stat = ks_test(normalized_gaps, "Uniform(0,1)")    # Kolmogorov-Smirnov against uniform [0,1]
+    if ks_stat.p_value < 0.05:
+        print(f"Warning: Non-Poisson dynamics detected in segment {seg}")
+# This flags if inter-event distribution deviates from exponential (uniform after transform).
+
+# 7. Report results
+print("Detected change-points at times:", changepoints)
+for j, seg in enumerate(segments):
+    print(f"Segment {j}: Duration={seg.duration}s, Estimated Intensity I_hat={hat_params['I'][seg]:.3f} (±{conf_int['I'][seg]:.3f})")
+print(f"Estimated device susceptibility parameters Theta_hat: {hat_params['Theta']} ± {conf_int['Theta']}")
+References: Key methodologies include Dempster et al. (1977) for EM with incomplete data
+tommasorigon.github.io
+, survival-analysis likelihood handling of censoring
+stats.stackexchange.com
+, Worsley (1986) and Siegmund (1988) for early change-point tests
+e-archivo.uc3m.es
+, Raftery & Akman (1986) and Carlin et al. (1992) for Bayesian single-change models
+e-archivo.uc3m.es
+, Green (1995) for Bayesian multiple change-point via RJMCMC
+e-archivo.uc3m.es
+, and Killick et al. (2012) for the PELT algorithm with linear computational cost
+cran.r-project.org
+. Adams & MacKay’s Bayesian online change-point detection
+e-archivo.uc3m.es
+ and Braun et al. (2022) on sampling-irregularity bias
+journals.aps.org
+journals.aps.org
+ are also foundational. For Bayesian diagnostics, see Gelman & Rubin (1992) on $R!-!\hat{}$ convergence
+developers.google.com
+ and Rubin (1984), Gelman et al. (1996) on posterior predictive checks
+mc-stan.org
+. These provide a solid groundwork for designing robust inference pipelines in our rare-event context.
+---
 ___
 
 """
@@ -160,5 +394,219 @@ As a computational scientist, survey algorithms and data structures best suited 
 Summarize trade-offs in a comparative table and recommend default implementations for this project.
 """
 ---
-(answer space for later)
+\section{Efficient Multi-Stream Synchronization}
+
+Multi-stream synchronization in our context involves merging data from multiple time-ordered sources (e.g. sensor logs) and aligning them with a piecewise-defined beam intensity profile. A straightforward approach is a **multi-way merge** of sorted lists (timestamps from each sensor and beam events). This can be implemented by iterating through timestamps in chronological order (using indices or a min-heap of the next event from each stream) to produce one merged timeline. While a naive merge is $O(N \cdot k)$ for $k$ streams, a heap-based approach achieves $O(N \log k)$ time, which is efficient for moderate $k$ (here $k=5$ including four sensors + beam):contentReference[oaicite:0]{index=0}:contentReference[oaicite:1]{index=1}. The result is a unified sequence of events where concurrent readings can be grouped by time windows (e.g. 10-minute bins).
+
+However, certain analyses require fast queries of cumulative values or interval overlaps rather than just merging. For example, to compute total dose in any given window or to find which beam interval a sensor reading falls into, specialized data structures are beneficial:
+
+- **Interval Trees:** These allow querying which time interval(s) contain a given timestamp, or which intervals overlap with a given window:contentReference[oaicite:2]{index=2}. By storing the beam profile as intervals [start, end] with associated flux or dose rates, an interval tree can return all active beam segments during a sensor event. This is useful for tagging each sensor reading with the concurrent beam conditions in $O(\log n + m)$ time (where $m$ is number of intervals found) instead of scanning all intervals. *Implementation Sketch:* one can build an interval tree by recursively splitting the set of beam intervals around a median time point:contentReference[oaicite:3]{index=3}. In Python, a simple alternative is using the `intervaltree` library for querying intervals by time. For instance:
+
+  \begin{lstlisting}[language=Python]
+  from intervaltree import IntervalTree
+  beam_intervals = IntervalTree()
+  for (t0, t1, flux) in beam_profile:
+      beam_intervals[t0:t1] = flux  # store flux value in each interval
+  # Query which intervals cover a timestamp t
+  active = beam_intervals[t]
+  for interval in active:
+      print(interval.begin, interval.end, interval.data)
+  \end{lstlisting}
+
+  This returns the interval(s) covering time `t` (if any), allowing us to retrieve flux or other properties. Interval trees thus directly support multi-stream synchronization by linking time-based records to interval-based contexts (like beam phases) efficiently:contentReference[oaicite:4]{index=4}.
+
+- **Fenwick Trees (Binary Indexed Trees):** For accumulating values like dose over time, a Fenwick tree provides an efficient structure for prefix-sum queries. If we discretize time into uniform steps or indices (e.g. each entry corresponds to a fixed time slice or a sensor reading index), we can maintain an array of dose contributions and build a Fenwick tree for fast cumulative sums. Fenwick trees answer range sum queries in $O(\log N)$ time and are simpler to implement than segment trees:contentReference[oaicite:5]{index=5}. They are well-suited for streaming updates as well. *Code Sketch:* Suppose `dose[i]` represents the radiation dose recorded in the $i$-th time slice, we initialize a Fenwick tree and use it to get cumulative dose up to index $j$ or in a window $[i,j]$:
+
+  \begin{lstlisting}[language=Python]
+  class FenwickTree:
+      def __init__(self, size):
+          self.n = size
+          self.tree = [0] * (size + 1)
+      def update(self, i, value):
+          # Increment value at index i
+          while i <= self.n:
+              self.tree[i] += value
+              i += i & -i
+      def query(self, i):
+          # Sum from start up to index i (inclusive)
+          s = 0
+          while i > 0:
+              s += self.tree[i]
+              i -= i & -i
+          return s
+      def range_sum(self, l, r):
+          return self.query(r) - self.query(l-1)
+  # Example usage:
+  ft = FenwickTree(N)
+  for idx, val in enumerate(dose, start=1):
+      ft.update(idx, val)
+  total_to_j = ft.query(j)
+  window_sum = ft.range_sum(i, j)
+  \end{lstlisting}
+
+  In our scenario, this could be used to quickly compute the total dose in any given time window (by converting timestamps to indices or bins). Both Fenwick trees and segment trees achieve $O(\log N)$ query and update time; a segment tree is more flexible (supporting minima, maxima, etc.) at the cost of higher memory and implementation complexity:contentReference[oaicite:6]{index=6}. For prefix sums and simple aggregates, Fenwick trees are typically preferred due to their minimal code and memory overhead:contentReference[oaicite:7]{index=7}.
+
+In summary, to synchronize multi-stream data efficiently: 
+1. Use a **sweep-line merge** (multi-way merge) to align events chronologically across streams for one-pass combination.
+2. Employ an **Interval Tree** for quick lookup of interval-based attributes (like beam on/off phases affecting a timestamp):contentReference[oaicite:8]{index=8}.
+3. Use a **Fenwick Tree** or **Segment Tree** for fast computations of cumulative metrics (e.g. dose over intervals) instead of recomputing sums repeatedly. The combination of these structures ensures that queries on merged time-series data (e.g. “how much dose accumulated in the last 10 minutes before a latch-up event?”) can be answered in logarithmic time rather than linear scanning.
+
+\section{Anomaly Scoring Methods for Event Detection}
+
+Radiation effects and system anomalies (like latch-ups or bit flips) need to be detected against a noisy background. We outline a combination of techniques for anomaly scoring:
+
+- **Sliding Window Statistical Detection:** This method continuously computes statistics over a rolling window of recent data to flag anomalies. A robust approach is to use the median and *Median Absolute Deviation* (MAD) within the window to calculate a modified $Z$-score for the latest reading:contentReference[oaicite:9]{index=9}. MAD-based $Z$-scores are preferred because they are less sensitive to outliers than mean-based scores:contentReference[oaicite:10]{index=10}:contentReference[oaicite:11]{index=11}. For example, if $W_t = \{x_{t-w+1}, \dots, x_t\}$ is the window of the last $w$ readings, we compute median $M_t = \mathrm{median}(W_t)$ and MAD $= \mathrm{median}(|W_t - M_t|)$. An anomaly score can be $Z_t^\ast = \frac{x_t - M_t}{1.4826 \cdot \text{MAD}}$, where 1.4826 is a consistency factor for normal distribution. If $|Z_t^\ast|$ exceeds a threshold (e.g. 3 or 4), the point is flagged as an anomaly:contentReference[oaicite:12]{index=12}. This technique can catch spikes or drops in sensor values in real-time with low computational cost (each update removes the oldest point and adds a new one). Below is a simplified sketch:
+
+  \begin{lstlisting}[language=Python]
+  from collections import deque
+  import numpy as np
+
+  window = deque(maxlen=w)
+  anomalies = []
+  for reading in sensor_stream:
+      window.append(reading)
+      if len(window) == w:
+          data = np.array(window)
+          M = np.median(data)
+          MAD = np.median(np.abs(data - M))
+          robust_z = 0 if MAD == 0 else (data[-1] - M) / (1.4826 * MAD)
+          if abs(robust_z) > 3.5:  # anomaly threshold
+              anomalies.append((reading.timestamp, robust_z))
+  \end{lstlisting}
+
+  This will label points that deviate significantly from the local baseline. The sliding window size $w$ can be tuned (e.g. to 5 or 10 minutes of data) to balance sensitivity and noise suppression.
+
+- **Bayesian Online Change-Point Detection (BOCPD):** Whereas sliding windows detect point anomalies, BOCPD is a probabilistic method to detect changes in the underlying data distribution at an unknown time:contentReference[oaicite:13]{index=13}:contentReference[oaicite:14]{index=14}. The algorithm (Adams \& MacKay, 2007) maintains a posterior distribution over the run length (time since last change) for each new data point. When a drastic change in statistical behavior occurs, the run-length distribution resets, signaling a change-point. In practice, one defines a likelihood model for the data (e.g. Gaussian with unknown mean) and a hazard function for change probability. As data arrives, the algorithm updates the probability that a change occurred at each time. A high instantaneous change probability can serve as an anomaly score indicating a regime shift (for example, a sudden jump in error count or current draw). BOCPD is appealing because it yields a *Bayesian confidence* of a change at each time step, incorporating uncertainty. However, a direct implementation has $O(n^2)$ complexity for $n$ data points due to tracking many possible run lengths:contentReference[oaicite:15]{index=15}:contentReference[oaicite:16]{index=16}. Optimizations like pruning low-probability run lengths:contentReference[oaicite:17]{index=17}:contentReference[oaicite:18]{index=18} or fixed-lag approximations are used to make it real-time. In our context, we could apply BOCPD to sensor metrics (voltage, current) to detect when they statistically shift due to radiation events. For instance, a sustained drop in voltage or rise in bit flips would trigger a high change probability. Pseudocode for one step of BOCPD update (for a new observation $x_t$) is:
+
+  \begin{lstlisting}[language=Python]
+  # Given run_length_probs for previous time t-1 as a list,
+  # and predictive distribution functions:
+  new_run_probs = []
+  # 1. Calculate probability of a change at t (run_length = 0)
+  new_run_probs[0] = sum(run_length_probs[i] * P(change at t | run_length=i)) * P(x_t | new run)
+  # 2. Calculate growth probabilities for existing run lengths
+  for r in range(len(run_length_probs)):
+      # extend each run by 1 if no change:
+      prob_r = run_length_probs[r] * (1 - hazard) * P(x_t | parameters conditioned on run_length=r)
+      new_run_probs[r+1] = prob_r
+  # 3. Normalize new_run_probs
+  new_run_probs /= sum(new_run_probs)
+  \end{lstlisting}
+
+  Here `hazard` is the prior change probability per time step (could be constant or time-dependent), and $P(x_t|\cdot)$ is the predictive probability of the new observation given the run length's parameters. In implementation, one would use recursion with log probabilities for numerical stability. The outcome of BOCPD is often a matrix of run-length probabilities or the posterior probability of “change now” at each $t$. We can convert that into an anomaly score (e.g. the probability of a change within the next $\Delta t$ exceeding some threshold).
+
+- **Ensemble Techniques:** To improve robustness, we can combine the above methods into an ensemble anomaly score. Different detectors capture different aspects: sliding window catches instantaneous outliers, while BOCPD finds shifts in trend or variance. An ensemble could, for example, flag an anomaly if *either* the robust $Z$-score is extreme or the change-point probability is high, or use a weighted sum of normalized scores. We might also include domain-specific detectors (e.g. a sudden surge in **I\_AC** current or a burst of bit flips in a short time). Ensemble anomaly detection is powerful because it reduces false negatives — an event is less likely to be missed if multiple independent algorithms scrutinize the data:contentReference[oaicite:19]{index=19}:contentReference[oaicite:20]{index=20}. The trade-off is added complexity: we must tune multiple detectors and decide how to fuse their outputs (via logical rules or statistical scoring). In practice, one could maintain parallel processes for each method and then aggregate results for each time window. For instance:
+
+  \begin{lstlisting}[language=Python]
+  # Pseudo-code for combining anomaly scores from methods
+  score_sw = compute_sliding_window_score(x_t)
+  score_bocpd = compute_bocpd_score(x_t)
+  # Normalize scores to [0,1]
+  sw_norm = min(score_sw / sw_threshold, 1.0)
+  bocpd_norm = min(score_bocpd / bocpd_threshold, 1.0)
+  combined_score = 0.5*sw_norm + 0.5*bocpd_norm
+  if combined_score > 1.0:
+      flag_anomaly(t)
+  \end{lstlisting}
+
+  This simple scheme averages two scores, each capped at 1. If either score exceeds its threshold, the combined score will be $>1$ and trigger an anomaly. More sophisticated ensembles could use a machine learning model to weight features or a voting system if we had labeled anomaly examples. In summary, combining sliding windows, BOCPD, and possibly other algorithms (like isolation forests or neural nets if needed) provides a more reliable anomaly indicator at the cost of computational overhead and tuning effort.
+
+\section{Integrating Predictions into Interactive Dashboards}
+
+Integrating predictive models and anomaly detection results into an interactive dashboard enables users to explore and respond to the data in real time. In a Jupyter Notebook environment, one can use **ipywidgets** or interactive plotting libraries to create dashboards inline. For example, using `interact` or slider widgets to filter time ranges or adjust anomaly thresholds allows dynamic updates of plots within the notebook. This approach has the advantage of being implemented in pure Python with minimal overhead — ideal during development or for sharing results in an environment stakeholders can run themselves. An example using `ipywidgets.interact`:
+
+\begin{lstlisting}[language=Python]
+import ipywidgets as widgets
+from IPython.display import display, clear_output
+
+# Assume we have a function to plot metrics for a given time window
+def plot_window(start_time, end_time, p_crit=0.1):
+    clear_output(wait=True)
+    # (load or compute relevant data subset)
+    fig = make_risk_plot(start_time, end_time, p_crit)
+    display(fig)
+
+# Create interactive controls
+widgets.interact(plot_window,
+    start_time=widgets.FloatSlider(min=0, max=T_max, step=600, description="Start"),
+    end_time=widgets.FloatSlider(min=0, max=T_max, step=600, description="End"),
+    p_crit=widgets.FloatSlider(min=0.0, max=1.0, step=0.01, description="p_crit"));
+\end{lstlisting}
+
+In a live notebook, this would produce sliders to select a time window and a probability threshold, updating the plot on the fly. **Performance considerations:** For large datasets or complex models, recomputing on every widget change can be slow. To mitigate this, one can precompute prediction results (e.g. anomaly scores, expected latch-ups for each window) and store them, so the dashboard callbacks only perform lightweight filtering and visualization. Caching results in memory or on disk is important when dealing with long time series (spanning many hours of high-frequency data). Jupyter’s stateful nature means large dataframes kept in memory will bloat the notebook; it’s wise to downsample for visualization and only load full-resolution data for the specific interval being viewed.
+
+For more scalable solutions or sharing with non-developers, frameworks like **Voil\`a, Panel, Dash, or Streamlit** can turn notebooks or scripts into standalone web dashboards. These typically separate the interactive UI from the data processing. For instance, **Plotly Dash** apps can be used to create an interactive dashboard with controls (dropdowns, sliders) and graphs. A challenge arises with extremely large data (millions of points or rows): sending all data to the client or even reading it into Python can be slow. In one case, a 12.5 million row dataset caused crashes when loading and filtering on each interaction:contentReference[oaicite:21]{index=21}. The solution involved caching data and using an optimized dataframe library (Vaex) to handle out-of-core filtering:contentReference[oaicite:22]{index=22}:contentReference[oaicite:23]{index=23}. The lesson is to push heavy lifting to the back-end: aggregate or reduce data before plotting, and use efficient data structures. 
+
+**Optimizations for large notebooks/dashboards:**
+- *Lazy loading:* Only fetch or compute data for the current view or selection. If the user zooms or selects a new window, use pre-aggregated summaries for speed.
+- *Throttling UI updates:* Use debounce on sliders or a “Submit” button to avoid updating plots on every tiny change when using notebooks. This prevents overwhelming the kernel with redundant computations.
+- *Browser-side rendering:* Leverage WebGL-based plotting or downsampling (e.g. Plotly’s `scattergl` or Bokeh’s Datashader integration) to handle many points by rasterizing or summarizing them.
+- *Background computations:* In Jupyter, one can use multi-threading or multiprocess (with care) to compute predictions in parallel to user interaction, though synchronization is needed. In deployed dashboards, a callback architecture (like Dash’s) can ensure the UI remains responsive while the server does crunching in the background.
+
+In practice, for this project, we might start with an **interactive notebook dashboard** using ipywidgets for simplicity, given the data volume is manageable in memory. As complexity grows or if we need to share with a wider audience, porting to a dedicated dashboard (Voil\`a or Dash app) would be beneficial. The default implementation should emphasize efficiency: precomputing key results (like the ranked risk windows and anomaly flags) during data processing, then using the dashboard mainly for visualization and what-if exploration (e.g. adjusting $p_{crit}$ or filtering by run). This ensures the interactive experience remains smooth and avoids long notebook execution pauses when toggling controls.
+
+\section{Trade-offs and Recommendations}
+
+The table below summarizes the trade-offs between different algorithms and data structures discussed, helping inform our default implementation choices:
+
+\begin{table}[h!]\centering
+\caption{Comparison of Key Approaches for Synchronization, Anomaly Detection, and Integration\label{tab:comparison}}
+\begin{tabular}{p{3.8cm} | p{4.8cm} | p{4.8cm}}
+\hline 
+\textbf{Approach} & \textbf{Advantages} & \textbf{Trade-offs / Limitations} \\
+\hline
+\textit{Interval Tree (for time intervals)} & - Fast interval queries ($O(\log n)$ per query) for beam phases:contentReference[oaicite:24]{index=24}. 
+- Handles overlapping intervals gracefully. 
+& - Implementation complexity higher than simple looping.
+- Mostly static: dynamic updates are complex (if intervals change). \\[1ex]
+\textit{Fenwick Tree (prefix sums)} & - Simple array-based structure, easy to implement. 
+- $O(\log n)$ prefix sum queries and updates:contentReference[oaicite:25]{index=25}. 
+- Low memory overhead. 
+& - Limited to cumulative operations (e.g. sums).
+- Requires data indexed (e.g. discretized time). 
+- Not as flexible as segment trees for arbitrary range operations. \\[1ex]
+\textit{Segment Tree (range queries)} & - Supports a variety of range queries (sum, min, max, count) in $O(\log n)$. 
+- Can be adapted for dynamic data. 
+& - Uses more memory (typically $2N$ or more).
+- More involved implementation; BIT is often preferred for just sums:contentReference[oaicite:26]{index=26}.
+- Slight constant-factor overhead vs. Fenwick. \\[1ex]
+\textit{Sliding Window + MAD} & - Captures local outliers; robust to noise:contentReference[oaicite:27]{index=27}. 
+- Linear time, real-time friendly (streaming computation). 
+- No distribution assumption needed. 
+& - Window size needs tuning for best results.
+- Only detects point anomalies, not shifts in baseline.
+- Could miss anomalies that span longer than window length. \\[1ex]
+\textit{Bayesian Online CPD} & - Statistically principled detection of regime changes; provides probability estimates. 
+- Can incorporate prior knowledge (e.g. expected run lengths). 
+& - Computationally heavy in naive form (near $O(n^2)$):contentReference[oaicite:28]{index=28}:contentReference[oaicite:29]{index=29}; requires optimization for long series.
+- Needs a proper statistical model; sensitive to model assumptions (hazard, likelihood). 
+- May lag in detection if changes are subtle. \\[1ex]
+\textit{Ensemble (Sliding + BOCPD)} & - Combines multiple detectors, improving sensitivity and robustness. 
+- Balances immediate spike detection with shift detection. 
+& - More parameters to tune (thresholds for each method, combining strategy).
+- Higher complexity in implementation and computation.
+- Risk of overfitting if not carefully validated. \\[1ex]
+\textit{In-Notebook Widgets} & - Quick to implement within Jupyter; uses existing environment. 
+- Great for prototyping and exploration by researchers. 
+& - Not optimized for very large data (possible lag or browser slowdown).
+- Sharing requires everyone to run the notebook environment.
+- State persistence can bloat the notebook file. \\[1ex]
+\textit{Dedicated Dashboard (Dash/Voil\`a/Panel)} & - Professional UI, can handle larger data via server-side processing. 
+- Can be deployed as a web app for broader access. 
+& - Additional development overhead to set up.
+- Must manage performance explicitly (caching, data reduction).
+- Complexity of maintaining two environments (analysis vs. app). \\
+\hline
+\end{tabular}
+\end{table}
+
+Based on the above considerations, our **recommended default implementation** is as follows:
+- **Data Synchronization:** Use simple merging for combining streams (leveraging Python’s sort/merge or pandas asof merge for accuracy), augmented with an **Interval Tree** for mapping timestamps to beam intervals. This combination offers clarity and efficiency for linking sensor events with beam phases.
+- **Dose/Count Aggregation:** Implement a **Fenwick Tree** for fast dose accumulation queries across time. Given its ease of implementation and efficiency for prefix sums, it will handle real-time dose calculations per window well:contentReference[oaicite:30]{index=30}.
+- **Anomaly Detection:** Start with the **Sliding Window + MAD** method for its simplicity and proven robustness to outliers:contentReference[oaicite:31]{index=31}. This will serve as a baseline anomaly score. On top of that, include a lightweight **Bayesian change-point detector** focusing on critical metrics (e.g. cumulative latch-ups or error rates) to signal distribution shifts. The ensemble of these two will cover both immediate spikes and gradual changes. We will monitor performance and, if needed, adjust the BOCPD component (e.g. by pruning or setting an upper limit on run length to control complexity).
+- **Interactive Dashboard:** Initially, use **Jupyter with ipywidgets** for an integrated analysis notebook that allows basic interaction (filtering by time, toggling anomaly thresholds). This meets immediate needs without heavy setup. As data grows or the audience widens, plan to migrate to **Voil\`a** (to share the notebook as a web app) or **Dash** for a more scalable solution. We will incorporate caching of results and downsampling in the dashboard to ensure snappy performance even for large notebooks, following best practices (e.g. computing summary statistics in advance, using efficient libraries for big data):contentReference[oaicite:32]{index=32}.
+
+This hybrid strategy prioritizes development speed and clarity (leveraging straightforward structures and methods) while laying the groundwork for more advanced techniques as needed. By choosing these default implementations, we ensure that the project’s analysis is both **responsive** and **reliable** in detecting anomalies and informing stakeholders through interactive visualizations.
+
+---
 ___
