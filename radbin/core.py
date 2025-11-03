@@ -187,11 +187,13 @@ def compute_scaled_time_clipped(
 def extract_event_times(
     fails_df: pd.DataFrame,
     time_col: str = "time",
-    cum_col: str  = "failsP_acum"
+    cum_col: str  = "failsP_acum",
+    min_separation: float = 0.0,
 ) -> pd.Series:
     """
     From monotonically non-decreasing cumulative counter, emit one timestamp per increment.
     If negatives occur (resets), they are clipped to 0 increments.
+    Optionally collapse events closer than ``min_separation`` seconds.
     """
     f = fails_df.copy()
     t = to_datetime_smart(f[time_col])
@@ -203,7 +205,20 @@ def extract_event_times(
     for ti, k in zip(t, dc):
         if k > 0:
             times.extend([ti] * int(k))
-    return pd.Series(times, name="event_time", dtype="datetime64[ns]")
+    series = pd.Series(times, name="event_time", dtype="datetime64[ns]")
+    if min_separation > 0 and len(series) > 1:
+        gap = pd.to_timedelta(float(min_separation), unit="s")
+        series = series.sort_values().reset_index(drop=True)
+        mask = [True]
+        last = series.iloc[0]
+        for ts in series.iloc[1:]:
+            if ts - last >= gap:
+                mask.append(True)
+                last = ts
+            else:
+                mask.append(False)
+        series = series[mask].reset_index(drop=True)
+    return series
 
 # -----------------------------
 # Reset detection & binning
@@ -281,6 +296,41 @@ def build_bins_reset_locked(reset_bounds: List[pd.Timestamp], k_multiple: int = 
         edges.append(resets[-1])
     return edges
 
+
+
+def recommend_k_multiple(
+    fails_df: pd.DataFrame,
+    target_events_per_bin: int = 5,
+    min_separation: float = 0.0,
+    time_col: str = "time",
+    cum_col: str = "failsP_acum",
+) -> int:
+    """
+    Suggest ``k_multiple`` so that reset-locked bins contain roughly the target
+    number of events on median.
+    """
+    resets = detect_resets(fails_df, time_col=time_col, cum_col=cum_col)
+    if not resets:
+        return 1
+    edges = build_bins_reset_locked(resets, k_multiple=1)
+    if len(edges) < 2:
+        return 1
+    events = extract_event_times(
+        fails_df, time_col=time_col, cum_col=cum_col, min_separation=min_separation
+    )
+    if len(events) == 0:
+        return 1
+    et = pd.to_datetime(events).sort_values().to_numpy(dtype="datetime64[ns]")
+    counts: List[int] = []
+    for a, b in zip(edges[:-1], edges[1:]):
+        counts.append(int(((et >= np.datetime64(a)) & (et < np.datetime64(b))).sum()))
+    if not counts:
+        return 1
+    med = float(np.median(counts))
+    if not np.isfinite(med) or med <= 0:
+        return 1
+    k = int(np.ceil(target_events_per_bin / med))
+    return max(1, k)
 def build_bins_equal_fluence(beam_eq: pd.DataFrame, n_bins: int) -> List[pd.Timestamp]:
     """
     Build edges so that scaled time (t_eq) is split into ~equal segments.

@@ -6,6 +6,7 @@ from .core import (
     build_bins_reset_locked,
     build_bins_equal_fluence,
     build_bins_equal_count,
+    recommend_k_multiple,
     BinStat,
     garwood_rate_ci,
     summarize_bins,
@@ -14,4 +15,4 @@ from .core import (
     check_real_output,
     conservation_checks,
 )
-from .glm import poisson_trend_test
+from .glm import poisson_trend_test, poisson_trend_test_plus
