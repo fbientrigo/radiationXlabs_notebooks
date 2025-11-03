@@ -1,3 +1,5 @@
+"""Wavelet and spectral helpers for verDAQ diagnostics feeding binning QA."""
+
 import numpy as np
 import pandas as pd
 
