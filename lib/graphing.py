@@ -1,7 +1,9 @@
+"""Visualization utilities for aligning beam, DMM, and failure timelines."""
+
 import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
 import numpy as np
+import pandas as pd
+import seaborn as sns
 
 def coincidence_time(time1: pd.Series, time2: pd.Series,
                      data_labels: list = ["Beam", "DMM"],

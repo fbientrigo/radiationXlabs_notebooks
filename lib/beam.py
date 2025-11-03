@@ -1,54 +1,57 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import glob
+"""Beam preprocessing helpers aligned with the Poisson bathtub workflow.
+
+This module provides the light-weight readers and rate calculators that bridge
+the raw HEH monitor exports with the fluence-binning flow captured in
+``docs/initial_probability_models.md``.  Notebook authors typically call these
+utilities before handing the data to :mod:`radbin.core` for bin construction.
+"""
+
+from __future__ import annotations
+
 import os
 
-# Función para cargar un solo CSV, asignar run_group, verificar monotonía y graficar
-def read_beam_data(path: str,
-                       run_id: int,
-                       plot: bool = False,
-                       title: str | None = None) -> pd.DataFrame:
-    """
-    Load a single Beam CSV, assign a run group, check for monotonicity, and optionally plot key variables.
+import matplotlib.pyplot as plt
+import pandas as pd
+
+
+def read_beam_data(
+    path: str,
+    run_id: int,
+    plot: bool = False,
+    title: str | None = None,
+) -> pd.DataFrame:
+    """Load, sanity-check, and optionally visualize a single beam CSV export.
 
     Parameters
     ----------
-    path : str
-        Filesystem path to the Beam CSV file. The CSV must contain the columns
-        "time", "TID_RAW1", "HEH", and "N1MeV_RAW0".
-    run_id : int
-        Identifier to assign to the `run_group` column for this data segment.
-    plot : bool, default=False
-        If True, generate a two-panel figure:
-          - Left panel: histogram of timestamp sampling.
-          - Right panel: log-scaled time series of TID, HEH, and N1MeV.
-    title : str or None, default=None
-        Optional super-title for the figure (only used if `plot=True`).
+    path
+        Filesystem path to the beam CSV file.  The file must contain the
+        columns ``Time``, ``TID_RAW1``, ``HEH``, and ``N1MeV_RAW0`` that the
+        verDAQ conversion scripts emit.
+    run_id
+        Identifier to assign to the ``run_group`` column.  This mirrors the run
+        context used in the Poisson bathtub notebooks so merged tables preserve
+        provenance.
+    plot
+        If ``True``, generate a two-panel diagnostic figure consisting of a
+        timestamp histogram and a log-scaled time series for the key counters.
+    title
+        Optional super-title for the diagnostic figure.
 
     Returns
     -------
-    pd.DataFrame
-        A DataFrame with columns:
-          - `time` (datetime64[ns])
-          - `TID` (float)
-          - `HEH` (float)
-          - `N1MeV` (float)
-          - `run_group` (int)
-        Sorted by `time` and with monotonicity verified for TID, HEH, and N1MeV.
+    pandas.DataFrame
+        Cleaned table with ``time``, ``TID``, ``HEH``, ``N1MeV``, and
+        ``run_group`` columns sorted by time.  Counter monotonicity is checked
+        and warnings are printed if violations are detected.
 
     Notes
     -----
-    - If any of TID, HEH, or N1MeV is not strictly non-decreasing, an error message
-      is printed but execution continues.
-    - time is parsed via `pd.to_datetime`, and the DataFrame is reset_index(drop=True)
-      after sorting.
-
-    Examples
-    --------
-    >>> df = read_my_beam("beam_run1.csv", run_id=1, plot=True, title="Run 1 Overview")
+    The counters are expected to be monotonically non-decreasing.  Any detected
+    regression is reported to ``stdout`` so that analysts can investigate the
+    upstream acquisition log before feeding the data into the fluence binning
+    stage described in ``docs/initial_probability_models.md``.
     """
-    import pandas as pd
-    import matplotlib.pyplot as plt
 
     # 1) Leer y renombrar columnas
     df_run = pd.read_csv(path, usecols=["Time", "TID_RAW1", "HEH", "N1MeV_RAW0"])
@@ -57,16 +60,16 @@ def read_beam_data(path: str,
     df_run = df_run[["time", "TID", "HEH", "N1MeV"]].sort_values("time").reset_index(drop=True)
 
     # 2) Asignar identificador de run
-        # Utilizado a modo de organizar los casos de tener datos de beam separados por mucho
+    # Utilizado a modo de organizar los casos de tener datos de beam separados por mucho
     df_run["run_group"] = int(run_id)
 
     # 3) Verificar monotonía sin interrumpir la ejecución
     if not df_run["TID"].is_monotonic_increasing:
-        print(f"ERROR: TID no es monotónico en {path}")
+        print(f"WARNING: TID no es monotónico en {path}")
     if not df_run["HEH"].is_monotonic_increasing:
-        print(f"ERROR: HEH no es monotónico en {path}")
+        print(f"WARNING: HEH no es monotónico en {path}")
     if not df_run["N1MeV"].is_monotonic_increasing:
-        print(f"ERROR: N1MeV no es monotónico en {path}")
+        print(f"WARNING: N1MeV no es monotónico en {path}")
 
     # 4) Gráficos si plot=True
     if plot:
@@ -82,8 +85,8 @@ def read_beam_data(path: str,
             tl.set_rotation(30)
 
         # ---- Derecha: TID, HEH y N1MeV vs time (escala log en Y) ----
-        ax_vars.plot(df_run["time"], df_run["TID"],   label="TID",   linewidth=1)
-        ax_vars.plot(df_run["time"], df_run["HEH"],   label="HEH",   linewidth=1)
+        ax_vars.plot(df_run["time"], df_run["TID"], label="TID", linewidth=1)
+        ax_vars.plot(df_run["time"], df_run["HEH"], label="HEH", linewidth=1)
         ax_vars.plot(df_run["time"], df_run["N1MeV"], label="N1MeV", linewidth=1)
         ax_vars.set_yscale("log")
         ax_vars.set_title(f"Contadores vs time\n{os.path.basename(path)}")

@@ -1,9 +1,12 @@
 """Bit decoding utilities for CPLD telemetry frames.
 
+The helpers produce bit-flip timelines used by the Poisson bathtub notebooks
+and the roadmap in ``docs/initial_probability_models.md``.
+"""
+
 The original ``archive/CPLD_data_ana_Run3.ipynb`` notebook performed the
 conversion of the hexadecimal ``B0``/``B1`` columns into per-bit counters.  This
 module provides a tested, well documented Python API that mirrors that logic.
-"""
 
 from __future__ import annotations
 

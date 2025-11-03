@@ -1,4 +1,5 @@
-"""Utilidades de visualización para los contadores del CPLD."""
+"""Visualization helpers for CPLD counters used in the Poisson bathtub studies."""
+
 from __future__ import annotations
 
 from typing import List, Optional, Sequence
