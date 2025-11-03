@@ -1,6 +1,17 @@
 # Índice General del Análisis de Radiación
 Radiation analysis project related to the intake radiation from CHARM, how it affects measurements at different ways.
 
+## Repository layout after consolidation (Nov 2025)
+
+- `analysis/`: Ported studies from the historical `new/analysis` tree grouped by campaign (First/Second/Third Run) together with ROOT exports.
+- `archive/`: Legacy notebooks retained for reference, including the newly migrated snapshots under `archive/from_new/` and the original grouping notebook in `archive/legacy_versions/`.
+- `docs/`: Unified documentation from both roadmaps (meeting notes, schematics, technical reports, and the previous README variants).
+- `lib/`: Helper modules consumed by notebooks, now extended with `beam.py`, `cpld.py`, and `poisson_binning.py` extracted from the newer workflows.
+- `radbin/`: Standalone package implementing the bathtub/radbin analysis utilities referenced by the August notebooks and tests.
+- `results/`: Generated figures and CSV exports from the integrated pipelines (currently the radbin outputs moved from `new/notebooks/out`).
+- `tests/`: Automated checks, including the migrated `test_acceptance.py` that exercises the radbin pipeline with synthetic fixtures.
+- `1_data/` & `1_logs/`: Shared datasets and log snapshots consolidated from the `new/` tree for reproducibility of the DMM/beam pipelines.
+
 ## Future Development Knowledge Map
 
 ### Step 1 · Knowledge Inventory for LLM Collaborators
