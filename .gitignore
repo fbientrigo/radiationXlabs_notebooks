@@ -195,3 +195,5 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+1_data/df2_valid.csv
+1_data/df3_valid.csv
