@@ -1,6 +1,64 @@
 # Índice General del Análisis de Radiación
 Radiation analysis project related to the intake radiation from CHARM, how it affects measurements at different ways.
 
+## Future Development Knowledge Map
+
+### Step 1 · Knowledge Inventory for LLM Collaborators
+
+- **Personas & viewpoints**
+  - *Radiation Experimentalist*: governs accelerator conditions, dosimetry, detector calibration, single-event effects (SEE) physics, and uncertainty propagation across mixed-field environments.
+  - *Statistical Physicist*: curates probabilistic models for event counts (Poisson, Negative Binomial, Bayesian posteriors), survival/renewal processes for latch-ups, and resampling strategies for sparse anomalies.
+  - *Embedded Systems Reliability Engineer*: interprets FPGA/CPLD telemetry, latch-up mitigation circuitry, fault injection logs, and ties them to radiation levels and device states.
+  - *Computational Storyteller*: synthesizes results into reproducible notebooks, dashboards, and human-centered narratives for stakeholders.
+
+- **Data assets & representations**
+  - Time-stamped sensor series from verDAQ, DMM, beam monitors, and bitflip counters.
+  - Calibration metadata (beam energy spectra, LET distributions, shielding configurations).
+  - Derived features: cumulative TID, HEH fluence, current/voltage change rates, clustering of SEE events, environmental factors (temperature, biasing).
+
+### Step 1a · Physics Olympiad Framing
+
+*Problem Statement*: “A CHARM mixed-field beam of known energy spectrum irradiates a programmable logic board instrumented with verDAQ (voltage), DMM (current), and bitflip counters. During a 6-hour run, the beam intensity profile is provided as a piecewise function of time \( \Phi(t) \). Each device has a published single-event latch-up cross-section \( \sigma(E) \) dependent on particle energy. Determine: (1) the expected distribution of latch-up counts per hour, (2) the probability that the system remains latch-up free for at least \( T \) minutes, and (3) the cumulative energy deposition (TID) as a function of time given shielding corrections. Provide explicit formulas, intermediate steps, and justify approximations (e.g., thin-target Poisson statistics vs. compound Poisson when flux fluctuates).”
+
+*Key competencies required*
+- Convolution of flux with cross-section: \( \lambda(t) = \int \Phi(t, E) \sigma(E) dE \).
+- Poisson vs. non-Poisson event modeling when flux segments differ.
+- Propagation of measurement uncertainties and detector efficiency corrections.
+- Coupling electrical telemetry (current spikes, voltage drops) with predicted event timing.
+- Dimensional analysis to ensure unit consistency across mixed instrumentation.
+
+### Step 1b · LeetCode-Style Reframing
+
+*Problem*: “Given synchronized logs from four sensors, each as a list of tuples `(timestamp, payload)`, plus a beam profile represented as disjoint intervals `[start, end, flux, energy_spectrum_id]`, compute for every 10-minute window: (a) aggregated dose (Gy), (b) predicted expected latch-ups, (c) detected anomalies (current > threshold, voltage dips, bitflip bursts), and (d) earliest warning time before a critical latch-up probability surpasses \( p_{crit} \). Return a ranked list of windows sorted by risk and annotate each with causal signals.”
+
+*Algorithmic implications*
+- Interval tree or sweep-line merge for multi-stream synchronization.
+- Prefix sums / Fenwick tree to accumulate dose efficiently.
+- Sliding window anomaly detection with robust z-score or Bayesian change-point analysis.
+- Dynamic programming or greedy scheduling to align mitigation actions with predicted risk peaks.
+- Graph or relational joins to link device states with beam configurations.
+
+### Step 2 · Research Preparation Themes
+
+1. **Established methodologies (baseline study)**
+   - Standard SEE testing protocols (JEDEC JESD57, ESA ESCC) and their data structures.
+   - Poisson/compound Poisson counting statistics for radiation-induced events.
+   - Signal conditioning for high-noise electrical measurements (CWT, FFT, filtering).
+   - Radiation transport basics (LET spectra, shielding attenuation models).
+
+2. **Under-documented frontiers (needs deep dives)**
+   - Mixed-field correlation between proton/neutron components and simultaneous SEE/SET signatures.
+   - Transient thermal effects on latch-up susceptibility during beam spills.
+   - Bias-dependent cross-section evolution for modern FPGAs and CPLDs under cumulative dose.
+   - Cross-calibration of heterogeneous sensors when sampling cadence drifts or clocks skew.
+
+3. **Algorithmic building blocks**
+   - Time-series segmentation via Bayesian Online Change-Point Detection.
+   - Hierarchical Bayesian models to jointly infer flux variability and device susceptibility.
+   - Probabilistic graphical models linking telemetry and radiation sources.
+   - Active learning / reinforcement scheduling for adaptive beam experimentation.
+
+Refer to `PHYSICS.md` for ready-to-use deep research prompts targeting each theme.
 
 ## 0. Cronograma y Entregables
 
