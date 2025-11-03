@@ -1,6 +1,15 @@
 """Event extraction helpers for CPLD bit-flip counters."""
 from __future__ import annotations
 
+"""Event extraction utilities for CPLD bit-flip counters.
+
+The resulting tables feed the fluence-aligned failure analysis captured in
+``docs/initial_probability_models.md`` and the associated Poisson bathtub
+notebooks.
+"""
+
+from __future__ import annotations
+
 from typing import List
 
 import pandas as pd
