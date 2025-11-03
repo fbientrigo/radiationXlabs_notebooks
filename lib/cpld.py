@@ -1,15 +1,23 @@
+"""CPLD parsing utilities used to align failures with beam fluence bins.
+
+The near-term probability-model notebooks rely on these helpers to turn raw
+serial captures into structured failure timelines that can be merged with the
+beam fluence tables described in ``docs/initial_probability_models.md``.
+"""
+
+from __future__ import annotations
+
 import glob
-import pandas as pd
-from io import StringIO
-from datetime import datetime, timedelta
-import matplotlib.pyplot as plt
-
 import logging
-from typing import List, Dict, Tuple, Union, Optional
-
-import time
-import numpy as np
 import re
+import time
+from datetime import datetime, timedelta
+from io import StringIO
+from typing import Dict, List, Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 def parse_message(raw: str) -> tuple[datetime, int, str, str]:
     """
