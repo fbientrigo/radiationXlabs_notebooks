@@ -1,14 +1,20 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator
-import glob
-import os
-import pandas as pd
-import numpy as np
+"""verDAQ log ingestion helpers feeding the probabilistic modeling notebooks."""
 
-def pre_pipeline(df):
-    """
-    Limpieza del dataframe y la aplicación de operaciones para dejar los datos en el formato más comodo
+from __future__ import annotations
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+
+def pre_pipeline(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize raw verDAQ exports into analysis-ready numeric columns.
+
+    The Poisson bathtub notebooks expect timestamps as ``datetime64[ns]`` and
+    hexadecimal channel readings converted to integers.  This helper performs
+    those transformations and forward-fills occasional gaps so downstream
+    feature engineering can focus on beam alignment rather than parsing issues.
     """
     # Nans
     mask = df.isna().any(axis=1)
@@ -30,7 +36,11 @@ def pre_pipeline(df):
     df[channel_cols] = df[channel_cols].applymap(safe_hex_to_int)
     return df
 
-def import_file(data="../0_raw/verDAQ8_data_2022_05_26_131703_00000.dat", log_path="parse_errors.log"):
+def import_file(
+    data: str | Path = "../0_raw/verDAQ8_data_2022_05_26_131703_00000.dat",
+    log_path: str | Path = "parse_errors.log",
+) -> pd.DataFrame:
+    """Load a verDAQ text dump and return the cleaned table produced by ``pre_pipeline``."""
     try:
         df = pd.read_csv(
             data,
