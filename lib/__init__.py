@@ -9,6 +9,9 @@ from .reading import *
 from .detection import *
 from .wavelet import *
 from .graphing import *  # graphic library, useful plots
+from .beam import *
+from .cpld import *
+from .poisson_binning import *
 from .cpld_io import *
 from .cpld_decode import *
 from .cpld_events import *
