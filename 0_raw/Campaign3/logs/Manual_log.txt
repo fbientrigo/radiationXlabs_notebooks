@@ -1,0 +1,5 @@
+http://cwe-513-vpl091:8080/
+	user CHARM: 
+9/11/22	11:21	CPLD se pone en posicion lista para irradiar, Voltaje de alimentacion 5.2 V corriente 0.081 mA app. A medida que pasa el tiempo consumo comienza a subir. Datos enviados estan ok. Separados por ,
+10/11/22	10:15	Se modifica monitoreo para conteo de errores, si sobrepasan los 400 se reiniciará.
+					

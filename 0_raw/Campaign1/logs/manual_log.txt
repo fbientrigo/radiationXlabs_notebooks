@@ -1,0 +1,138 @@
+logbook manual
+26/5/2022	11:46	Error de reset de fuente en modulo arduino al pasa tiempo.
+			Se modifica tiempo de espera de 10 min a 5 min.
+			Error al reiniciar modulo verdaq8 luego de un powercycle. no existe atributo sp.close
+			Error solucionado al borrar verdaq8 y volver a arrancarlo.
+			Datos desde 23:59 del 25/05/2022 hasta esta hora no se deben considerar.
+		11:59	Reinicio de adquisicion, todos los canales buenos luego de dejar la tarjeta apagada por 5 minutos
+			programa arduino se queda pegado hasta dar enter en la pantalla de la terminal.
+			luego de iniciar la adquisicion se prende el gen de señales.
+			3 muestras buenas se toman y se inicia secuencia de reinicio.
+			Secuencia se ejecuta sin problemas, se vuelven a tomar datos.
+27/5/2022	11:22	Detencion de adquisicion, error de out of range y no se guardan los datos.
+			Traceback (most recent call last):
+  			File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 88, in <module>
+    			if (verdaq.read_event()):
+  			File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 123, in read_event
+    			while res.decode().split()[0] != "409":
+			IndexError: list index out of range
+			Al abrir consola de monitoreo serial se observa que zynq esta enviando sin cesar 158+espacio sin dar salto
+			de linea
+		12:18	Se procede a resetear manualmente verDAQ16
+		12:22	Nada se lee por el puerto serial
+		12:23	Se realiza otro reseteo manual.
+		12:25	Tarjeta opera normalmente otra vez, datos se plotean demasiado ruidoso en todos los canales por lo que
+			se resetea otra vez manualmente. DMM_module.py habia quedado pegado en la terminal hasta dar Enter en laconsola
+			Los datos desde las 20:16 del 26/5/2022 en adelante no aparecian.
+
+		16:05	Error de monitoreo, la Zynq envía datos pero no del largo correspondiente, la fifo interna parece
+			estar dañada. No llega al largo correspondiente, parece ser mayor, y el contador de datos
+			no esta incrementándose bien, estos eventos fueron guardados en una carpeta en escritorio
+		16:10	Se aplica reset manual.
+28/5/22		9:06	Ultimo evento registrado a las 0:30, no se lee nada desde el puerto serial
+2022-05-28 00:30:51,820 event stored
+reading event 164
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 88, in <module>
+    if (verdaq.read_event()):
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 113, in read_event
+    if (self.wait_initial_seq()):
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 99, in wait_initial_seq
+    while res.decode() != "\n#-\n":
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa1 in position 0: invalid start byte
+		9:10	se inicia reset manual
+		18:52	reset manual por error
+2022-05-28 13:54:28,370 event stored
+reading event 112
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 88, in <module>
+    if (verdaq.read_event()):
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 113, in read_event
+    if (self.wait_initial_seq()):
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 99, in wait_initial_seq
+    while res.decode() != "\n#-\n":
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa1 in position 0: invalid start byte
+		
+29/5/2022	19:36	Error de envío de datos, verDAQ16 no envía ningun dato desde 16:48. Se deja apagada
+30/5/2022	10:40	La corriente al encender la fuente oscila entre 0.65 A y 0.3 A sin poder activar la Mezzanina
+			La fuente funciona en dos estados, si activo la salida con un rele oscila, si la activo
+			manualmente se queda pegada en 0.288 A
+01/06/2022      9:50	The board was not able to turn on the mezzanine. the Trenz board aparently is working, 
+			the mezzanine will be removed
+		10:50	The trenz voltage is stable without the mezzanine board. A new firmware was tested and works as spected.
+		
+		12:02	trenz board test started.
+		17:44	Se detiene la adquisicion por error de rango.
+2/06/2022	11:07	Reinicio de adquisicion nuevamente. No se registran datos 
+		11:20	Reinicio manual directo con consola al arduino y vuelve a iniciar la adquisición.
+		12:39	Mediciones de corriente se paran para realizar actualizacion de script de medicion. 
+		15:51 	El reinicio automático no funciona bien en la trenz por alguna razon, se reinicia manual y 
+			se vuelve a adquirir datos 
+		16:46	turnoff daq and current measurement. firmware send header without any data producing a daq
+			system failure.
+		18:57	modifications on launchDAQ done. restarting measurement, restarting was difficult, the 			board didnt reach the 0.62 A 	
+3/06/2022	8:38	Programa se detiene a las 3 am por un error de tiempo de espera en el modulo de corriente
+			Agregar la medicion de corriente luego de un power recycle
+			storing event 353
+2022-06-03 03:26:36,646 event stored
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 130, in <module>
+    check_current()
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 116, in check_current
+    if is_current_low():
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 43, in is_current_low
+    fnameC = datadirC + os.listdir(datadirC)[-1]
+OSError: [WinError 426] La operación de nube no se completó antes de que expirara el período de tiempo de espera: 'data_run_trenz/DMM_data/'
+
+
+		11:03	La tarjeta continua sin arrancar, se queda pegada en 0.27 [A], no carga el programa desde 
+la flash		
+5/6/2022 dos reinicios manuales hoy, corriente esta en 0.58 A en el de las 19:45
+
+7/6/2022	16:20	Error de adquisicion en la consola terminal de windows. Tarjeta sigue enviando datos correctamente.
+
+reading event 167
+initial seq found b'\n#-\n'
+storing event 167
+2022-06-07 15:51:11,270 event stored
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 132, in <module>
+    if (check_current()):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 122, in check_current
+    if is_current_high():
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 54, in is_current_high
+    fnameC = datadirC + os.listdir(datadirC)[-1]
+OSError: [WinError 426] La operación de nube no se completó antes de que expirara el período de tiempo de espera: 'data_run_trenz/DMM_data/'
+		16:25 launchDAQ.py changed to handle OS error.
+
+8/6/2022	9:32	Turning off DUT for inspection.
+		11:18   The device was not flashed again, there was an increase in the current consumtion (710mA)
+			We left the device on taking measurements.
+9/6/2022	18:25	Error on unicode character happened at 17:05
+10/6/2022	15:00	Error, cant decode byte 0xa1. invalid start byte.
+reading event 204
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 138, in <module>
+    ret = verdaq.read_event()
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 120, in read_event
+    if (self.wait_initial_seq()):
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 101, in wait_initial_seq
+    while res.decode() != "\n#-\n":
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xa1 in position 0: invalid start byte
+			Error provocó consumo de corriente de 0.69 A por una hora 
+		18:55	restarting daq for error handling update.
+12/6/2022	8:00	Error el 11/6 a las 15:36 hrs por caracter mal leido
+reading event 66
+initial seq found b'\n#-\n'
+Traceback (most recent call last):
+  File "C:\Users\oj507\TCMS_RadTest\launchDAQ.py", line 138, in <module>
+    ret = verdaq.read_event()
+  File "C:\Users\oj507\TCMS_RadTest\verDAQ8_module.py", line 133, in read_event
+    while res.decode().split()[0] != "409":
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xf0 in position 27: unexpected end of data
+13/6/2022	11:00	Intentos de reset manuales moviendo cables en la fuente sin exito.
+24/6/2022	16:22	Running test after CHARM irradiation, mezzanine irradiated, mother board irradiated and trenz not irradiated.
+27/6/2922	12:48	Se detiene adquisicion del fin de semana. Datos tomados con exito sin interrupciones en mezzanina y motherboard irradiada. 
+
+
+					
