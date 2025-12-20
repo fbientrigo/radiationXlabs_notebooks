@@ -2,7 +2,7 @@
 
 The helpers bridge raw dumps and the modeling notebooks described in
 ``docs/initial_probability_models.md`` by providing clean timestamped tables.
-"""
+
 
 This module concentrates the notebook logic used to locate and parse the
 ``cpld_data_*.dat`` files generated during irradiation runs.  The functions are
