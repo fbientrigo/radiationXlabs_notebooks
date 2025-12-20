@@ -1,5 +1,5 @@
-"""Event extraction helpers for CPLD bit-flip counters."""
 from __future__ import annotations
+"""Event extraction helpers for CPLD bit-flip counters."""
 
 """Event extraction utilities for CPLD bit-flip counters.
 
@@ -8,7 +8,6 @@ The resulting tables feed the fluence-aligned failure analysis captured in
 notebooks.
 """
 
-from __future__ import annotations
 
 from typing import List
 
